@@ -1,10 +1,17 @@
 package request
 
 import (
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strings"
+)
+
+type parserState string
+
+const (
+	StateInit parserState = "init"
+	StateDone parserState = "done"
 )
 
 type RequestLine struct {
@@ -15,17 +22,27 @@ type RequestLine struct {
 
 type Request struct {
 	RequestLine RequestLine
+	state       parserState
 	Headers     map[string]string
 	Body        []byte
 }
 
-func (r *RequestLine) ValidHttp() bool {
-	return r.HttpVersion == "HTML/1.1"
+func newRequest() *Request {
+	return &Request{
+		state: StateInit,
+	}
 }
 
 var ERROR_BAD_REQUEST_LINE = fmt.Errorf("Bad Request Line")
 var SEPERATOR = "\r\n"
 var ERROR_BAD_HTTP_VERSION = fmt.Errorf("Bad Http Version")
+
+func (r *Request) parse(data []byte) (int, error) {
+
+}
+func (r *Request) done() bool {
+	return r.state == StateDone
+}
 
 func parseRequestLine(b string) (*RequestLine, string, error) {
 	idx := strings.Index(b, SEPERATOR)
@@ -38,20 +55,37 @@ func parseRequestLine(b string) (*RequestLine, string, error) {
 	if len(parts) != 3 {
 		return nil, restOfMessage, ERROR_BAD_REQUEST_LINE
 	}
+	versionParts := strings.Split(parts[2], "/")
+	if len(versionParts) != 2 || versionParts[0] != "HTTP" || versionParts[1] != "1.1" {
+		return nil, restOfMessage, ERROR_BAD_REQUEST_LINE
+	}
 	rl := &RequestLine{
 		Method:        parts[0],
 		RequestTarget: parts[1],
-		HttpVersion:   parts[2],
+		HttpVersion:   versionParts[1],
 	}
-	if !rl.ValidHttp() {
-		return nil, restOfMessage, ERROR_BAD_HTTP_VERSION
-	}
+
 	return rl, restOfMessage, nil
 }
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, fmt.Errorf("couldnt read request")
+	request := newRequest()
+	buff := make([]byte, 1024)
+	buffLength := 0
+	for !request.done() {
+		n, err := reader.Read(buff[buffLength:])
+		if err != nil {
+			return nil, err
+		}
+
+		buffLength += n
+		readN, err := request.parse(buff[:buffLength])
+		if err != nil {
+			return nil, err
+		}
+		copy(buff, buff[readN:buffLength])
+		buffLength -= readN
+
 	}
+	return request, nil
 }
