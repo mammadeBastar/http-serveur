@@ -2,7 +2,7 @@ package request
 
 import (
 	"io"
-	"strings"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,9 +22,7 @@ func (cr *chunkReader) Read(p []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 	endIndex := cr.pos + cr.numBytesPerRead
-	if endIndex > len(cr.data) {
-		endIndex = len(cr.data)
-	}
+	endIndex = int(math.Min(float64(endIndex), float64(len(cr.data))))
 	n = copy(p, cr.data[cr.pos:endIndex])
 	cr.pos += n
 
@@ -37,7 +35,7 @@ func TestRequestLineParse(t *testing.T) {
 		data:            "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n",
 		numBytesPerRead: 1,
 	}
-	r, err := parseRequestLine(reader)
+	r, err := RequestFromReader(reader)
 	require.NoError(t, err)
 	require.NotNil(t, r)
 	assert.Equal(t, "GET", r.RequestLine.Method)
