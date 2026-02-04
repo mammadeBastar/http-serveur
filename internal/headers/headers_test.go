@@ -44,4 +44,13 @@ func TestHeadersParse(t *testing.T) {
 	assert.Equal(t, "mohsen", headers.Get("mohsenONE"))
 	assert.Equal(t, 21, n)
 	assert.True(t, done)
+
+	// Test: valid multiple headers with the same name
+	headers = NewHeaders()
+	data = []byte("moHSenOne: mohsen\r\nmohsenone: ahmad\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	require.NotNil(t, headers)
+	assert.Equal(t, "mohsen,ahmad", headers.Get("mohsenONE"))
+	assert.Equal(t, 39, n)
 }

@@ -24,7 +24,11 @@ func (h *Headers) Get(name string) string {
 }
 
 func (h *Headers) Set(name, value string) {
-	(*h).headers[strings.ToLower(name)] = value
+	if val, ok := (*h).headers[strings.ToLower(name)]; ok {
+		(*h).headers[strings.ToLower(name)] = fmt.Sprintf("%s,%s", val, value)
+	} else {
+		(*h).headers[strings.ToLower(name)] = value
+	}
 }
 
 var tokenRE = regexp.MustCompile("^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$")
