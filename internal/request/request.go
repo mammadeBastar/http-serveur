@@ -44,41 +44,47 @@ var ERROR_BAD_HTTP_VERSION = fmt.Errorf("Bad Http Version")
 func (r *Request) parse(data []byte) (int, error) {
 	read := 0
 outer:
-	switch r.state {
+	for {
+		switch r.state {
 
-	case StateInit:
-		requestLine, n, err := parseRequestLine(data[read:])
-		if err != nil {
-			return 0, err
-		}
+		case StateInit:
+			requestLine, n, err := parseRequestLine(data[read:])
+			if err != nil {
+				return 0, err
+			}
 
-		if n == 0 {
+			if n == 0 {
+				break outer
+			}
+
+			r.RequestLine = *requestLine
+			read += n
+
+			r.state = StateHeaders
+
+		case StateHeaders:
+			n, done, err := r.Headers.Parse(data[read:])
+			if err != nil {
+				return 0, err
+			}
+
+			if n == 0 {
+				break outer
+			}
+
+			read += n
+
+			if done {
+				r.state = StateDone
+			}
+
+		case StateDone:
 			break outer
 		}
-
-		r.RequestLine = *requestLine
-		read += n
-
-		r.state = StateHeaders
-
-	case StateHeaders:
-		n, done, err := r.Headers.Parse(data[read:])
-		if err != nil {
-			return 0, err
-		}
-
-		read += n
-
-		if done {
-			r.state = StateDone
-		}
-
-	case StateDone:
-		break outer
 	}
-
 	return read, nil
 }
+
 func (r *Request) done() bool {
 	return r.state == StateDone
 }

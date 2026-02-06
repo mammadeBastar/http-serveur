@@ -84,3 +84,30 @@ func TestHeaderParse(t *testing.T) {
 	r, err = RequestFromReader(reader)
 	require.Error(t, err)
 }
+
+func TestParseSingleCallMustConsumeLineAndHeaders(t *testing.T) {
+	data := []byte(
+		"GET / HTTP/1.1\r\n" +
+			"Host: example.com\r\n" +
+			"User-Agent: test\r\n\r\n",
+	)
+
+	reader := &chunkReader{
+		data:            string(data),
+		numBytesPerRead: 3,
+	}
+	r, err := RequestFromReader(reader)
+
+	require.NoError(t, err)
+
+	// With the `for` loop:
+	// - request line parsed
+	// - headers parsed
+	// - state == StateDone
+	assert.Equal(t, StateDone, r.state)
+
+	// Must consume the entire buffer
+
+	assert.Equal(t, "GET", r.RequestLine.Method)
+	assert.Equal(t, "example.com", r.Headers.Get("host"))
+}
