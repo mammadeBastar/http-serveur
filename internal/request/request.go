@@ -6,6 +6,7 @@ import (
 	"http-serveur/internal/headers"
 	"io"
 	"slices"
+	"strconv"
 )
 
 type parserState string
@@ -13,6 +14,7 @@ type parserState string
 const (
 	StateInit    parserState = "init"
 	StateHeaders parserState = "headers"
+	StateBody    parserState = "body"
 	StateDone    parserState = "done"
 	StateError   parserState = "error"
 )
@@ -34,6 +36,7 @@ func newRequest() *Request {
 	return &Request{
 		state:   StateInit,
 		Headers: headers.NewHeaders(),
+		Body:    []byte(""),
 	}
 }
 
@@ -41,10 +44,21 @@ var ERROR_BAD_REQUEST_LINE = fmt.Errorf("Bad Request Line")
 var SEPERATOR = []byte("\r\n")
 var ERROR_BAD_HTTP_VERSION = fmt.Errorf("Bad Http Version")
 
+func (r *Request) hasBody() bool {
+	lengthStr, ok := r.Headers.Get("content-length")
+	if !ok {
+		return false
+	}
+	return lengthStr != "0"
+}
+
 func (r *Request) parse(data []byte) (int, error) {
 	read := 0
 outer:
 	for {
+		if len(data[read:]) == 0 {
+			break outer
+		}
 		switch r.state {
 
 		case StateInit:
@@ -65,6 +79,7 @@ outer:
 		case StateHeaders:
 			n, done, err := r.Headers.Parse(data[read:])
 			if err != nil {
+				r.state = StateError
 				return 0, err
 			}
 
@@ -75,6 +90,30 @@ outer:
 			read += n
 
 			if done {
+				if r.hasBody() {
+					r.state = StateBody
+				} else {
+					r.state = StateDone
+				}
+			}
+
+		case StateBody:
+			bodyLengthStr, ok := r.Headers.Get("content-length")
+			if !ok {
+				panic("chunked not implemented")
+			}
+			bodyLength, err := strconv.Atoi(bodyLengthStr)
+			if err != nil {
+				r.state = StateDone
+			}
+			if bodyLength == 0 {
+				panic("chunked not implemented")
+			}
+
+			remaining := min(bodyLength-len(r.Body), len(data[read:]))
+			r.Body = append(r.Body, data[read:read+remaining]...)
+			read += remaining
+			if len(r.Body) == bodyLength {
 				r.state = StateDone
 			}
 
