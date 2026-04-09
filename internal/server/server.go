@@ -1,8 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
+	"http-serveur/internal/reponse"
 	"http-serveur/internal/request"
+	"io"
 	"log"
 	"net"
 	"sync/atomic"
@@ -12,26 +15,33 @@ type Server struct {
 	port     uint16
 	closed   atomic.Bool
 	listener net.Listener
+	handler  Handler
 }
+
+type HandlerError struct {
+	statusCode reponse.StatusCode
+	msg        string
+}
+
+type Handler func(w io.Writer, req *request.Request) *HandlerError
 
 func (s *Server) handle(conn net.Conn) {
 	r, err := request.RequestFromReader(conn)
 	if err != nil {
 		log.Fatal("error", "error", err)
 	}
-	fmt.Printf("request line: \n")
-	fmt.Printf("- Method: %s\n", r.RequestLine.Method)
-	fmt.Printf("- Target: %s\n", r.RequestLine.RequestTarget)
-	fmt.Printf("- Version: %s\n", r.RequestLine.HttpVersion)
-	fmt.Printf("headers: \n")
-	r.Headers.ForEach(func(n, v string) {
-		fmt.Printf("- %s: %s\n", n, v)
-	})
-	fmt.Printf("Body: \n")
-	fmt.Println(string(r.Body))
+	var out bytes.Buffer
 
-	out := []byte("HTTP/1.1 200 OK\r\nContent-Type: text/plain Content-Length: 13\r\n\r\nHello World!")
-	conn.Write(out)
+	herr := s.handler(&out, r)
+	if herr != nil {
+		writeError(conn, herr)
+	}
+
+	h := reponse.GetDefaultHeaders(out.Len())
+	reponse.WriteStatusLine(conn, 200)
+	reponse.WriteHeaders(conn, h)
+	conn.Write(out.Bytes())
+
 	conn.Close()
 }
 
@@ -50,7 +60,15 @@ func (s *Server) listen() {
 	}()
 }
 
-func Serve(port uint16) (*Server, error) {
+func writeError(w io.Writer, err *HandlerError) error {
+	h := reponse.GetDefaultHeaders(len(err.msg))
+	reponse.WriteStatusLine(w, err.statusCode)
+	reponse.WriteHeaders(w, h)
+	w.Write([]byte(err.msg))
+	return nil
+}
+
+func Serve(port uint16, handler Handler) (*Server, error) {
 	server := &Server{
 		port:   port,
 		closed: atomic.Bool{},
@@ -70,3 +88,4 @@ func (s *Server) Close() error {
 	s.listener.Close()
 	return nil
 }
+
