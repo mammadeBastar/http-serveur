@@ -19,8 +19,8 @@ type Server struct {
 }
 
 type HandlerError struct {
-	statusCode reponse.StatusCode
-	msg        string
+	StatusCode reponse.StatusCode
+	Msg        string
 }
 
 type Handler func(w io.Writer, req *request.Request) *HandlerError
@@ -61,17 +61,18 @@ func (s *Server) listen() {
 }
 
 func writeError(w io.Writer, err *HandlerError) error {
-	h := reponse.GetDefaultHeaders(len(err.msg))
-	reponse.WriteStatusLine(w, err.statusCode)
+	h := reponse.GetDefaultHeaders(len(err.Msg))
+	reponse.WriteStatusLine(w, err.StatusCode)
 	reponse.WriteHeaders(w, h)
-	w.Write([]byte(err.msg))
+	w.Write([]byte(err.Msg))
 	return nil
 }
 
 func Serve(port uint16, handler Handler) (*Server, error) {
 	server := &Server{
-		port:   port,
-		closed: atomic.Bool{},
+		port:    port,
+		closed:  atomic.Bool{},
+		handler: handler,
 	}
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", server.port))
 	server.listener = listener
@@ -88,4 +89,3 @@ func (s *Server) Close() error {
 	s.listener.Close()
 	return nil
 }
-

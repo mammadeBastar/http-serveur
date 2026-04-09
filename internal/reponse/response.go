@@ -28,7 +28,7 @@ func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
 			return err
 		}
 	case StatusServerError:
-		_, err := w.Write([]byte("HTTP/1.1 400 Internal Server Error\r\n"))
+		_, err := w.Write([]byte("HTTP/1.1 500 Internal Server Error\r\n"))
 		if err != nil {
 			return err
 		}
