@@ -66,7 +66,7 @@ func Serve(port uint16) (*Server, error) {
 }
 
 func (s *Server) Close() error {
-	s.listener.Close()
 	s.closed.Store(true)
+	s.listener.Close()
 	return nil
 }
