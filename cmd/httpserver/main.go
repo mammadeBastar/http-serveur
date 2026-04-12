@@ -47,32 +47,61 @@ const (
 func main() {
 	var handle server.Handler = func(w reponse.Writer, req *request.Request) {
 		if req.RequestLine.RequestTarget == "/yourproblem" {
-			w.WriteStatusLine(400)
+			err := w.WriteStatusLine(400)
+			if err != nil {
+				log.Fatal("error writing status line", "error", err)
+			}
 			h := headers.NewHeaders()
 			var b []byte = []byte(YourProblemBody)
 			h.Set("Content-Length", strconv.Itoa(len(b)))
 			h.Set("Connection", "close")
 			h.Set("Content-Type", "text/html")
-			w.WriteHeaders(*h)
-			w.WriteBody(b)
+			err = w.WriteHeaders(*h)
+			if err != nil {
+				log.Fatal("error writing headers", "error", err)
+			}
+
+			_, err = w.WriteBody(b)
+			if err != nil {
+				log.Fatal("error writing status line", "error", err)
+			}
+
 		} else if req.RequestLine.RequestTarget == "/myproblem" {
-			w.WriteStatusLine(500)
+			err := w.WriteStatusLine(500)
+			if err != nil {
+				log.Fatal("error writing status line", "error", err)
+			}
 			h := headers.NewHeaders()
 			var b []byte = []byte(MyProblemBody)
 			h.Set("Content-Length", strconv.Itoa(len(b)))
 			h.Set("Connection", "close")
 			h.Set("Content-Type", "text/html")
-			w.WriteHeaders(*h)
-			w.WriteBody(b)
+			err = w.WriteHeaders(*h)
+			if err != nil {
+				log.Fatal("error writing headers", "error", err)
+			}
+			_, err = w.WriteBody(b)
+			if err != nil {
+				log.Fatal("error writing status line", "error", err)
+			}
 		} else {
-			w.WriteStatusLine(200)
+			err := w.WriteStatusLine(200)
+			if err != nil {
+				log.Fatal("error writing status line", "error", err)
+			}
 			h := headers.NewHeaders()
 			var b []byte = []byte(OkBody)
 			h.Set("Content-Length", strconv.Itoa(len(b)))
 			h.Set("Connection", "close")
 			h.Set("Content-Type", "text/html")
-			w.WriteHeaders(*h)
-			w.WriteBody(b)
+			err = w.WriteHeaders(*h)
+			if err != nil {
+				log.Fatal("error writing headers", "error", err)
+			}
+			_, err = w.WriteBody(b)
+			if err != nil {
+				log.Fatal("error writing status line", "error", err)
+			}
 		}
 
 	}
