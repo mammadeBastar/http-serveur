@@ -8,6 +8,19 @@ import (
 )
 
 type StatusCode = uint16
+type writerState = string
+
+const (
+	StateStatusLine writerState = "status line"
+	StateHeaders    writerState = "headers"
+	StateBody       writerState = "body"
+	StateDone       writerState = "nothing"
+)
+
+type Writer struct {
+	state writerState
+	io.Writer
+}
 
 const (
 	StatusOk          StatusCode = 200
@@ -15,7 +28,17 @@ const (
 	StatusServerError StatusCode = 500
 )
 
-func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{
+		state:  StateStatusLine,
+		Writer: w,
+	}
+}
+
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	if w.state != StateStatusLine {
+		return fmt.Errorf("you should be writing %s rn", w.state)
+	}
 	switch statusCode {
 	case StatusOk:
 		_, err := w.Write([]byte("HTTP/1.1 200 OK\r\n"))
@@ -38,19 +61,23 @@ func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
 			return err
 		}
 	}
+	w.state = StateHeaders
 	return nil
 }
 
-func GetDefaultHeaders(contentLen int) headers.Headers {
+func GetDefaultHeaders(contentLen int, contentType string) headers.Headers {
 	h := headers.NewHeaders()
 	iContentLength := strconv.Itoa(contentLen)
 	h.Set("Content-Length", iContentLength)
 	h.Set("Connection", "close")
-	h.Set("Content-Type", "text/plain")
+	h.Set("Content-Type", contentType)
 	return *h
 }
 
-func WriteHeaders(w io.Writer, headers headers.Headers) error {
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+	if w.state != StateHeaders {
+		return fmt.Errorf("you should be writing %s rn", w.state)
+	}
 	headerLine := ""
 	headers.ForEach(func(n, v string) {
 		headerLine += fmt.Sprintf("%s: %s", n, v)
@@ -58,5 +85,14 @@ func WriteHeaders(w io.Writer, headers headers.Headers) error {
 	})
 	headerLine += "\r\n\r\n"
 	w.Write([]byte(headerLine))
+	w.state = StateBody
 	return nil
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	if w.state != StateBody {
+		return 0, fmt.Errorf("you should be writing %s rn", w.state)
+	}
+	w.state = StateDone
+	return w.Write(p)
 }

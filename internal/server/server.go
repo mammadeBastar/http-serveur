@@ -1,11 +1,9 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"http-serveur/internal/reponse"
 	"http-serveur/internal/request"
-	"io"
 	"log"
 	"net"
 	"sync/atomic"
@@ -23,24 +21,17 @@ type HandlerError struct {
 	Msg        string
 }
 
-type Handler func(w io.Writer, req *request.Request) *HandlerError
+type Handler func(w reponse.Writer, req *request.Request)
 
 func (s *Server) handle(conn net.Conn) {
 	r, err := request.RequestFromReader(conn)
 	if err != nil {
 		log.Fatal("error", "error", err)
 	}
-	var out bytes.Buffer
 
-	herr := s.handler(&out, r)
-	if herr != nil {
-		writeError(conn, herr)
-	}
+	writer := reponse.NewWriter(conn)
 
-	h := reponse.GetDefaultHeaders(out.Len())
-	reponse.WriteStatusLine(conn, 200)
-	reponse.WriteHeaders(conn, h)
-	conn.Write(out.Bytes())
+	s.handler(*writer, r)
 
 	conn.Close()
 }
@@ -60,10 +51,10 @@ func (s *Server) listen() {
 	}()
 }
 
-func writeError(w io.Writer, err *HandlerError) error {
-	h := reponse.GetDefaultHeaders(len(err.Msg))
-	reponse.WriteStatusLine(w, err.StatusCode)
-	reponse.WriteHeaders(w, h)
+func writeError(w *reponse.Writer, err *HandlerError) error {
+	h := reponse.GetDefaultHeaders(len(err.Msg), "text/plain")
+	w.WriteStatusLine(err.StatusCode)
+	w.WriteHeaders(h)
 	w.Write([]byte(err.Msg))
 	return nil
 }

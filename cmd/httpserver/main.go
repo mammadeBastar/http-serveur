@@ -1,36 +1,80 @@
 package main
 
 import (
+	"http-serveur/internal/headers"
+	"http-serveur/internal/reponse"
 	"http-serveur/internal/request"
 	"http-serveur/internal/server"
-	"io"
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 )
 
 const port = 42069
 
+const (
+	YourProblemBody = `<html>
+  <head>
+    <title>400 Bad Request</title>
+  </head>
+  <body>
+    <h1>Bad Request</h1>
+    <p>Your request honestly kinda sucked.</p>
+  </body>
+</html>`
+	MyProblemBody = `<html>
+  <head>
+    <title>500 Internal Server Error</title>
+  </head>
+  <body>
+    <h1>Internal Server Error</h1>
+    <p>Okay, you know what? This one is on me.</p>
+  </body>
+</html>`
+	OkBody = `<html>
+  <head>
+    <title>200 OK</title>
+  </head>
+  <body>
+    <h1>Success!</h1>
+    <p>Your request was an absolute banger.</p>
+  </body>
+</html>`
+)
+
 func main() {
-	var handle server.Handler = func(w io.Writer, req *request.Request) *server.HandlerError {
+	var handle server.Handler = func(w reponse.Writer, req *request.Request) {
 		if req.RequestLine.RequestTarget == "/yourproblem" {
-			return &server.HandlerError{
-				StatusCode: 400,
-				Msg:        "Your problem is not my problem\n",
-			}
+			w.WriteStatusLine(400)
+			h := headers.NewHeaders()
+			var b []byte = []byte(YourProblemBody)
+			h.Set("Content-Length", strconv.Itoa(len(b)))
+			h.Set("Connection", "close")
+			h.Set("Content-Type", "text/html")
+			w.WriteHeaders(*h)
+			w.WriteBody(b)
+		} else if req.RequestLine.RequestTarget == "/myproblem" {
+			w.WriteStatusLine(500)
+			h := headers.NewHeaders()
+			var b []byte = []byte(MyProblemBody)
+			h.Set("Content-Length", strconv.Itoa(len(b)))
+			h.Set("Connection", "close")
+			h.Set("Content-Type", "text/html")
+			w.WriteHeaders(*h)
+			w.WriteBody(b)
+		} else {
+			w.WriteStatusLine(200)
+			h := headers.NewHeaders()
+			var b []byte = []byte(OkBody)
+			h.Set("Content-Length", strconv.Itoa(len(b)))
+			h.Set("Connection", "close")
+			h.Set("Content-Type", "text/html")
+			w.WriteHeaders(*h)
+			w.WriteBody(b)
 		}
 
-		if req.RequestLine.RequestTarget == "/myproblem" {
-			return &server.HandlerError{
-				StatusCode: 500,
-				Msg:        "Woopsie, my bad\n",
-			}
-		}
-
-		w.Write([]byte("All good, frfr\n"))
-
-		return nil
 	}
 	s, err := server.Serve(uint16(port), handle)
 	if err != nil {
@@ -44,4 +88,3 @@ func main() {
 	<-sigChan
 	log.Println("Server gracefully stopped")
 }
-

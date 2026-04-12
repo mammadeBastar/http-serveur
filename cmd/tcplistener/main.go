@@ -29,7 +29,7 @@ func main() {
 		r.Headers.ForEach(func(n, v string) {
 			fmt.Printf("- %s: %s\n", n, v)
 		})
-		fmt.Printf("body: \n")
+		fmt.Printf("Body: \n")
 		fmt.Println(string(r.Body))
 	}
 }
