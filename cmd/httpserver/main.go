@@ -65,16 +65,21 @@ func main() {
 				log.Fatal("can't create request", "error", err)
 			}
 			res, err := clinet.Do(hbreq)
-			defer res.Body.Close()
 			if err != nil {
+				errmsg := err.Error()
 				err := w.WriteStatusLine(500)
 				if err != nil {
 					log.Fatal("error writing status line", "error", err)
 				}
 				h.Set("Connection", "close")
+				h.Set("Content-Length", strconv.Itoa(len(errmsg)))
+				h.Set("Content-Type", "text/plain")
+				w.WriteHeaders(*h)
+				w.WriteBody([]byte(errmsg))
 				return
 
 			}
+			defer res.Body.Close()
 			err = w.WriteStatusLine(reponse.StatusCode(res.StatusCode))
 			if err != nil {
 				log.Fatal("cant write status line", "error", err)
@@ -85,10 +90,11 @@ func main() {
 				}
 			}
 			h.Set("Transfer-Encoding", "chunked")
+			w.WriteHeaders(*h)
 
 			buf := make([]byte, 32)
 			for {
-				_, err := res.Body.Read(buf)
+				n, err := res.Body.Read(buf)
 				if err != nil {
 					if errors.Is(err, io.EOF) {
 						_, err := w.WriteChunkedBodyDone()
@@ -99,7 +105,7 @@ func main() {
 					}
 					panic("we messed up response body reading")
 				}
-				_, err = w.WriteChunkedBody(buf)
+				_, err = w.WriteChunkedBody(buf[:n])
 				if err != nil {
 					log.Fatal("error writing a chunk", "error", err)
 				}

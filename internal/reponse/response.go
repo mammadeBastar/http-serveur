@@ -83,7 +83,7 @@ func (w *Writer) WriteHeaders(headers headers.Headers) error {
 		headerLine += fmt.Sprintf("%s: %s", n, v)
 		headerLine += "\r\n"
 	})
-	headerLine += "\r\n\r\n"
+	headerLine += "\r\n"
 	w.Write([]byte(headerLine))
 	w.state = StateBody
 	return nil
@@ -98,14 +98,17 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 }
 
 func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	if w.state != StateBody {
+		return 0, fmt.Errorf("you should be writing %s rn", w.state)
+	}
 	chunkSize := []byte(fmt.Sprintf("%X\r\n", len(p)))
 	var written int
 	n1, err := w.Write(chunkSize)
 	if err != nil {
 		return 0, err
 	}
-	p = append(p, []byte("\r\n")...)
-	n2, err := w.Write(p)
+	out := append(p, []byte("\r\n")...)
+	n2, err := w.Write(out)
 	if err != nil {
 		return written, err
 	}
@@ -113,5 +116,9 @@ func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
 }
 
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	if w.state != StateBody {
+		return 0, fmt.Errorf("you should be writing %s rn", w.state)
+	}
+	w.state = StateDone
 	return w.Write([]byte("0\r\n\r\n"))
 }
