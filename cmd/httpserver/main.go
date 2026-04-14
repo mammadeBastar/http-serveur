@@ -1,15 +1,21 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"http-serveur/internal/headers"
 	"http-serveur/internal/reponse"
 	"http-serveur/internal/request"
 	"http-serveur/internal/server"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
+	"time"
 )
 
 const port = 42069
@@ -44,9 +50,64 @@ const (
 </html>`
 )
 
+var clinet = &http.Client{
+	Timeout: 30 * time.Second,
+}
+
 func main() {
 	var handle server.Handler = func(w reponse.Writer, req *request.Request) {
-		if req.RequestLine.RequestTarget == "/yourproblem" {
+		if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin/") {
+			dest := strings.TrimPrefix(req.RequestLine.RequestTarget, "/httpbin/")
+			h := headers.NewHeaders()
+
+			hbreq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://httpbin.org/%s", dest), nil)
+			if err != nil {
+				log.Fatal("can't create request", "error", err)
+			}
+			res, err := clinet.Do(hbreq)
+			defer res.Body.Close()
+			if err != nil {
+				err := w.WriteStatusLine(500)
+				if err != nil {
+					log.Fatal("error writing status line", "error", err)
+				}
+				h.Set("Connection", "close")
+				return
+
+			}
+			err = w.WriteStatusLine(reponse.StatusCode(res.StatusCode))
+			if err != nil {
+				log.Fatal("cant write status line", "error", err)
+			}
+			for key, val := range res.Header {
+				if key != "Content-Length" {
+					h.Set(key, val[0])
+				}
+			}
+			h.Set("Transfer-Encoding", "chunked")
+
+			buf := make([]byte, 32)
+			for {
+				_, err := res.Body.Read(buf)
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						_, err := w.WriteChunkedBodyDone()
+						if err != nil {
+							log.Fatal("error writing chunked done", "error", err)
+						}
+						break
+					}
+					panic("we messed up response body reading")
+				}
+				_, err = w.WriteChunkedBody(buf)
+				if err != nil {
+					log.Fatal("error writing a chunk", "error", err)
+				}
+			}
+			return
+		}
+		switch req.RequestLine.RequestTarget {
+		case "/yourproblem":
 			err := w.WriteStatusLine(400)
 			if err != nil {
 				log.Fatal("error writing status line", "error", err)
@@ -66,7 +127,7 @@ func main() {
 				log.Fatal("error writing status line", "error", err)
 			}
 
-		} else if req.RequestLine.RequestTarget == "/myproblem" {
+		case "/myproblem":
 			err := w.WriteStatusLine(500)
 			if err != nil {
 				log.Fatal("error writing status line", "error", err)
@@ -84,7 +145,7 @@ func main() {
 			if err != nil {
 				log.Fatal("error writing status line", "error", err)
 			}
-		} else {
+		default:
 			err := w.WriteStatusLine(200)
 			if err != nil {
 				log.Fatal("error writing status line", "error", err)
